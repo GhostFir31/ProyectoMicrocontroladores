@@ -5,210 +5,94 @@
  */ 
 
 #define F_CPU 16000000L
-#include <stdbool.h>
 #include <avr/io.h>
-#include <util/delay.h>
 #include <avr/interrupt.h>
-#include <stdio.h>
+#include <util/delay.h>
 #include "LCD.h"
 
-bool kpf = false;
+uint8_t estado_anterior;
 
-char PressedKey(void){
-	
-	char key = 0;
-	
-	PORTD = 0b11110111;
-	
-	_delay_ms(1);
-	
-	if(!(PIND & (1<<PIND7))) key='1';
-	if(!(PIND & (1<<PIND6))) key='4';
-	if(!(PIND & (1<<PIND5))) key='7';
-	if(!(PIND & (1<<PIND4))) key='C';
-
-	if(key!=0){
-		
-		PORTD = 0b11110000;
-		return key;
-		
-	}
-	
-	PORTD = 0b11111011;
-	
-	_delay_ms(1);
-	
-	if(!(PIND & (1<<PIND7))) key='2';
-	if(!(PIND & (1<<PIND6))) key='5';
-	if(!(PIND & (1<<PIND5))) key='8';
-	if(!(PIND & (1<<PIND4))) key='0';
-	
-	if(key!=0){
-		
-		PORTD = 0b11110000;
-		return key;
-		
-	}
-	
-	PORTD = 0b11111101;
-	
-	_delay_ms(1);
-	
-	if(!(PIND & (1<<PIND7))) key='3';
-	if(!(PIND & (1<<PIND6))) key='6';
-	if(!(PIND & (1<<PIND5))) key='9';
-	if(!(PIND & (1<<PIND4))) key='=';
-	
-	if(key!=0){
-		
-		PORTD = 0b11110000;
-		return key;
-		
-	}
-	
-	PORTD = 0b11111110;
-	
-	_delay_ms(1);
-	
-	if(!(PIND & (1<<PIND7))) key='+';
-	if(!(PIND & (1<<PIND6))) key='-';
-	if(!(PIND & (1<<PIND5))) key='x';
-	if(!(PIND & (1<<PIND4))) key='/';
-	
-	PORTD = 0b11110000;
-	return key;
-	
+void configurar_pin_change_interrupt() {
+	PCICR |= (1 << PCIE2);  // Habilitar interrupción para PCINT[23:16] (Puerto D)
+	PCMSK2 |= 0xFF;         // Habilitar interrupciones por cambio de pin en todos los pines PD0-PD7
+	estado_anterior = PIND;  // Guardar el estado inicial de los pines
 }
+
+void prenderLed(uint8_t pin){
+	
+	switch(pin){
+		case 0:	PORTB |= (1 << PORTB2);  // Encender PB2
+		_delay_ms(1000);
+		PORTB &= ~(1 << PORTB2);  // Apagar PB2
+		break;
+		case 1:	PORTB |= (1 << PORTB1);  // Encender PB1
+		_delay_ms(1000);
+		PORTB &= ~(1 << PORTB1);  // Apagar PB1
+		break;
+		case 2:	PORTB |= (1 << PORTB2) | (1 << PORTB1);  // Encender PB2 y PB1
+		_delay_ms(1000);
+		PORTB &= ~(1 << PORTB2);  // Apagar PB2
+		PORTB &= ~(1 << PORTB1);  // Apagar PB1
+		break;
+		case 3:	PORTB |= (1 << PORTB0);  // Encender PB0
+		_delay_ms(1000);
+		PORTB &= ~(1 << PORTB0);  // Apagar PB0
+		break;
+		case 4:	PORTB |= (1 << PORTB2) | (1 << PORTB0);  // Encender PB2 y PB0
+		_delay_ms(1000);
+		PORTB &= ~(1 << PORTB2);  // Apagar PB2
+		PORTB &= ~(1 << PORTB0);  // Apagar PB0
+		break;
+		case 5:	PORTB |= (1 << PORTB1) | (1 << PORTB0);  // Encender PB1 y PB0
+		_delay_ms(1000);
+		PORTB &= ~(1 << PORTB1);  // Apagar PB1
+		PORTB &= ~(1 << PORTB0);  // Apagar PB0
+		break;
+		case 6:	PORTB |= (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);  // Encender PB2, PB1 y PB0
+		_delay_ms(1000);
+		PORTB &= ~(1 << PORTB2);  // Apagar PB2
+		PORTB &= ~(1 << PORTB1);  // Apagar PB1
+		PORTB &= ~(1 << PORTB0);  // Apagar PB0
+		break;
+	}
+}
+
 
 int main(void)
 {
-	// Configurar pines del teclado
-	DDRD |= 0b00001111;
-	DDRD &= 0b00001111;
-	PORTD |= 0b11110000;
-	PORTD &= 0b11110000;
-	// Habilitar interrupciones
-	PCICR |= 0b00000100;
-	PCMSK2 |= 0b11110000;
-	sei();
-	
-	// Resetear calculadora
-	void calculator_reset(void) {
-		lcd_clear();
-		lcd_goto_xy(0, 0);
-		lcd_write_word("CALCULADORA...");
-		lcd_goto_xy(1, 0);
-	}
-	
+	DDRB = 0b00001111;    // Configurar PB0-PB3 como salidas
+	PORTB = 0b00000000;   // Apagar salidas en PB0-PB3
+
+	DDRD = 0b00000000;    // Configurar PD0-PD7 como entradas
+	PORTD = 0xFF;         // Activar pull-ups internos para PD0-PD7
+
+	sei();                // Habilitar interrupciones globales
+	configurar_pin_change_interrupt();  // Configurar interrupciones por cambio de pin
+
 	lcd_init();
-	calculator_reset();
-	
-	
-	//Declaracion de Variables
-	char pressedkey = 0;
-	int num1 = 0;
-	int num2 = 0;
-	int num_temp = 0;
-	float resultado = 0;
-	char operacion = 0;
-	bool operacion_nueva = false;
-	char resultado_str[16];
-	
+	lcd_clear();
+	lcd_goto_xy(0, 0);
+	lcd_write_word("Simon Says");
+	lcd_goto_xy(1, 0);
+	lcd_write_word("Press Start..");
+
 	while (1)
 	{
-		if (kpf)
-		{
-			// Capturar la tecla presionada
-			pressedkey = PressedKey();
-			
-			if (pressedkey >= '0' && pressedkey <= '9')
-			{
-				num_temp = num_temp * 10 + (pressedkey - '0');
-				lcd_write_character(pressedkey);
-				operacion_nueva = false;
-			}
-			else if (pressedkey == '+' || pressedkey == '-' || pressedkey == 'x' || pressedkey == '/')
-			{
-				if (operacion_nueva) {
-					num1 = resultado;
-					} else {
-					num1 = num_temp;
-				}
-				
-				operacion = pressedkey;
-				lcd_write_character(pressedkey);
-				num_temp = 0;
-				operacion_nueva = true;
-			}
-			// Cuando se presiona '=' se realiza la operación
-			else if (pressedkey == '=')
-			{
-				num2 = num_temp;
-				
-				switch (operacion)
-				{
-					case '+':
-					resultado = num1 + num2;
-					break;
-					case '-':
-					resultado = num1 - num2;
-					break;
-					case 'x':
-					resultado = num1 * num2;
-					break;
-					case '/':
-					if (num2 != 0) {
-						resultado = (float)num1 / num2;
-						} else {
-						lcd_clear();
-						lcd_write_word("Error");
-						continue;
-					}
-					break;
-				}
-				
-				// Mostrar el resultado en el LCD
-				lcd_clear();
-				lcd_goto_xy(0, 0);
-				lcd_write_word("Resultado:");
-				
-				sprintf(resultado_str, "%.2f", resultado);
-				lcd_goto_xy(1, 0);
-				lcd_write_word(resultado_str);
-				
-				// Guardar el resultado en num1 para la próxima operación
-				num1 = resultado;
-				num_temp = 0;
-				operacion_nueva = true;
-			}
-			else if (pressedkey == 'C')
-			{
-				// Reiniciar la calculadora
-				calculator_reset();
-				num1 = 0;
-				num2 = 0;
-				resultado = 0;
-				num_temp = 0;
-				operacion = 0;
-				// Volver al estado de nueva operación
-				operacion_nueva = false;
-			}
-
-			_delay_ms(10);
-			// Resetear la bandera de interrupción
-			kpf = false;
-		}
+		// El microcontrolador esperará las interrupciones y responderá a ellas
 	}
 }
 
-ISR (PCINT2_vect)
-{
-	
-	if(!kpf)
-	{
+// ISR para "Pin Change Interrupt" del puerto D (PCINT[23:16])
+ISR(PCINT2_vect) {
+	uint8_t estado_actual = PIND;  // Leer el estado actual de los pines PD0-PD7
+	uint8_t cambio = estado_anterior ^ estado_actual;  // Detectar qué pines cambiaron
+	estado_anterior = estado_actual;  // Actualizar el estado anterior
 
-		kpf=true;
-
+	for (uint8_t i = 0; i < 8; i++) {
+		if (cambio & (1 << i)) {  // Si el pin PDx ha cambiado de estado
+			if (!(estado_actual & (1 << i))) {  // Si el pin PDx está en nivel bajo (botón presionado)
+				prenderLed(i);
+			}
+		}
 	}
-	
 }
