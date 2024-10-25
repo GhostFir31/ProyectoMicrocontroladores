@@ -1,16 +1,25 @@
-/*
- * Proyecto de Microcontroladores.c
- *
+/* 
+ * Proyecto de Microcontroladores.c 
+ *	
  * Created: 10/14/2024 5:09:27 PM
+ * Hora actual: 4:42pm
  */ 
 
 #define F_CPU 16000000L
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <stdbool.h>
 #include <util/delay.h>
 #include "LCD.h"
 
 uint8_t estado_anterior;
+unsigned int seed = 1;
+
+//Variables del juego
+uint8_t secuencia[30] = {4, 4, 5, 6, 5, 3, 4, 3, 7, 2, 1, 4, 4, 5, 4, 5, 3, 5, 7, 4, 5, 1, 4, 5, 4, 4, 1, 5, 5, 7};
+uint8_t count = 0;
+uint8_t ronda = 1;
+bool start = false;
 
 void configurar_pin_change_interrupt() {
 	PCICR |= (1 << PCIE2);  // Habilitar interrupción para PCINT[23:16] (Puerto D)
@@ -18,44 +27,111 @@ void configurar_pin_change_interrupt() {
 	estado_anterior = PIND;  // Guardar el estado inicial de los pines
 }
 
-void prenderLed(uint8_t pin){
-	
+void prenderLed(uint8_t pin, bool longer){
 	switch(pin){
-		case 0:	PORTB |= (1 << PORTB2);  // Encender PB2
-		_delay_ms(1000);
-		PORTB &= ~(1 << PORTB2);  // Apagar PB2
-		break;
-		case 1:	PORTB |= (1 << PORTB1);  // Encender PB1
-		_delay_ms(1000);
-		PORTB &= ~(1 << PORTB1);  // Apagar PB1
-		break;
-		case 2:	PORTB |= (1 << PORTB2) | (1 << PORTB1);  // Encender PB2 y PB1
-		_delay_ms(1000);
-		PORTB &= ~(1 << PORTB2);  // Apagar PB2
-		PORTB &= ~(1 << PORTB1);  // Apagar PB1
-		break;
-		case 3:	PORTB |= (1 << PORTB0);  // Encender PB0
-		_delay_ms(1000);
-		PORTB &= ~(1 << PORTB0);  // Apagar PB0
-		break;
-		case 4:	PORTB |= (1 << PORTB2) | (1 << PORTB0);  // Encender PB2 y PB0
-		_delay_ms(1000);
-		PORTB &= ~(1 << PORTB2);  // Apagar PB2
-		PORTB &= ~(1 << PORTB0);  // Apagar PB0
-		break;
-		case 5:	PORTB |= (1 << PORTB1) | (1 << PORTB0);  // Encender PB1 y PB0
-		_delay_ms(1000);
-		PORTB &= ~(1 << PORTB1);  // Apagar PB1
-		PORTB &= ~(1 << PORTB0);  // Apagar PB0
-		break;
-		case 6:	PORTB |= (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);  // Encender PB2, PB1 y PB0
-		_delay_ms(1000);
-		PORTB &= ~(1 << PORTB2);  // Apagar PB2
-		PORTB &= ~(1 << PORTB1);  // Apagar PB1
-		PORTB &= ~(1 << PORTB0);  // Apagar PB0
-		break;
+		case 0:
+			PORTB |= (1 << PORTB2);  // Encender PB2
+			break;
+		case 1:
+			PORTB |= (1 << PORTB1);  // Encender PB1
+			break;
+		case 2:
+			PORTB |= (1 << PORTB2) | (1 << PORTB1);  // Encender PB2 y PB1
+			break;
+		case 3:
+			PORTB |= (1 << PORTB0);  // Encender PB0
+			break;
+		case 4:
+			PORTB |= (1 << PORTB2) | (1 << PORTB0);  // Encender PB2 y PB0
+			break;
+		case 5:
+			PORTB |= (1 << PORTB1) | (1 << PORTB0);  // Encender PB1 y PB0
+			break;
+		case 6:
+			PORTB |= (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);  // Encender PB2, PB1 y PB0
+			break;
+		
+	}
+	if (!longer)
+		_delay_ms(250);
+	else
+		_delay_ms(2000);
+	PORTB &= ~(1 << PORTB2);  // Apagar PB2
+	PORTB &= ~(1 << PORTB1);  // Apagar PB1
+	PORTB &= ~(1 << PORTB0);  // Apagar PB0
+}
+
+
+void generarSecuencia() {
+	seed = seed + 1234;
+	
+	srand(seed);  // Inicializar la semilla
+
+	for (int i = 0; i < sizeof(secuencia); i++) {
+		secuencia[i] = (rand() % 7) + 1;  // Generar un número aleatorio entre 1 y 7
 	}
 }
+
+//Reproduce en orden la secuencia según el limite superior (ronda)
+void reproducirSecuencia() {
+	char rondaS[] = "    Ronda ";
+	sprintf(rondaS, "%s%d", rondaS, ronda);
+	lcd_clear();
+	lcd_goto_xy(0, 0);
+	lcd_write_word("Presta atencion!");
+	lcd_goto_xy(1, 0);
+	lcd_write_word(rondaS);
+	_delay_ms(500);
+	
+	for(int i = 0; i < ronda+2;i++) {
+		if (secuencia[i] != 0) {
+			prenderLed(secuencia[i]-1, false);
+			_delay_ms(350);
+		}
+		else
+			break;
+	}
+}
+
+void verificarBotonSecuencia(uint8_t pin)
+{
+	lcd_clear();
+	lcd_goto_xy(0, 0);
+	if (pin == secuencia[count]-1)
+	{
+		lcd_write_word("Bien!");
+		prenderLed(pin, false);
+		count++;
+		if (count == ronda+2) {
+			ronda ++;
+			count = 0;
+			reproducirSecuencia();
+		}
+	} else
+	{
+		lcd_write_word("   GAME OVER");
+		lcd_goto_xy(1, 0);
+		lcd_write_word("   Fallaste!    ");
+		prenderLed(secuencia[count]-1, true);
+		_delay_ms(1000);
+		perderJuego();
+		
+		lcd_clear();
+		lcd_goto_xy(0, 0);
+		lcd_write_word("   Simon Dice");
+		lcd_goto_xy(1, 0);
+		lcd_write_word("<--- Press Start");
+	}
+	
+}
+
+void perderJuego() {
+	count = 0;
+	ronda = 1;
+	start = false;
+	generarSecuencia();
+}
+
 
 
 int main(void)
@@ -68,14 +144,15 @@ int main(void)
 
 	sei();                // Habilitar interrupciones globales
 	configurar_pin_change_interrupt();  // Configurar interrupciones por cambio de pin
+	
 
 	lcd_init();
 	lcd_clear();
 	lcd_goto_xy(0, 0);
-	lcd_write_word("Simon Says");
+	lcd_write_word("   Simon Says");
 	lcd_goto_xy(1, 0);
-	lcd_write_word("Press Start..");
-
+	lcd_write_word("<--- Press Start");
+	
 	while (1)
 	{
 		// El microcontrolador esperará las interrupciones y responderá a ellas
@@ -91,7 +168,17 @@ ISR(PCINT2_vect) {
 	for (uint8_t i = 0; i < 8; i++) {
 		if (cambio & (1 << i)) {  // Si el pin PDx ha cambiado de estado
 			if (!(estado_actual & (1 << i))) {  // Si el pin PDx está en nivel bajo (botón presionado)
-				prenderLed(i);
+				if(i == 7)
+				{
+					if (start == false)
+					{
+						start = true;
+						generarSecuencia();
+						reproducirSecuencia();
+					}
+				}
+				else if (start)
+					verificarBotonSecuencia(i);
 			}
 		}
 	}
