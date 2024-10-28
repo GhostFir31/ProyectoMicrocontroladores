@@ -14,12 +14,34 @@
 
 uint8_t estado_anterior;
 unsigned int seed = 1;
+volatile unsigned int millis_count = 0;
 
 //Variables del juego
-uint8_t secuencia[30] = {4, 4, 5, 6, 5, 3, 4, 3, 7, 2, 1, 4, 4, 5, 4, 5, 3, 5, 7, 4, 5, 1, 4, 5, 4, 4, 1, 5, 5, 7};
+uint8_t secuencia[30];
 uint8_t count = 0;
 uint8_t ronda = 1;
 bool start = false;
+
+void setup_timer1() {
+	// Configura el Timer1 en modo CTC (Clear Timer on Compare Match)
+	TCCR1A = 0;               // Normal mode
+	TCCR1B = (1 << WGM12) | (1 << CS11); // Prescaler 8, modo CTC
+	OCR1A = 1999;             // Generará una interrupción cada 1 ms con un prescaler de 8 y F_CPU a 16MHz
+
+	// Habilita la interrupción por comparación
+	TIMSK1 = (1 << OCIE1A);
+}
+
+unsigned int millis() {
+	unsigned int ms;
+
+	// Deshabilita las interrupciones para leer millis_count de manera segura
+	cli();
+	ms = millis_count;
+	sei();
+
+	return ms;
+}
 
 void configurar_pin_change_interrupt() {
 	PCICR |= (1 << PCIE2);  // Habilitar interrupción para PCINT[23:16] (Puerto D)
@@ -63,7 +85,7 @@ void prenderLed(uint8_t pin, bool longer){
 
 
 void generarSecuencia() {
-	seed = seed + 1234;
+	seed = millis();
 	
 	srand(seed);  // Inicializar la semilla
 
@@ -91,15 +113,17 @@ void reproducirSecuencia() {
 		else
 			break;
 	}
+	lcd_goto_xy(0, 0);
+	lcd_write_word("       Go!      ");
 }
 
 void verificarBotonSecuencia(uint8_t pin)
 {
-	lcd_clear();
+	//lcd_clear();
 	lcd_goto_xy(0, 0);
 	if (pin == secuencia[count]-1)
 	{
-		lcd_write_word("Bien!");
+		lcd_write_word("     Bien!      ");
 		prenderLed(pin, false);
 		count++;
 		if (count == ronda+2) {
@@ -109,9 +133,7 @@ void verificarBotonSecuencia(uint8_t pin)
 		}
 	} else
 	{
-		lcd_write_word("   GAME OVER");
-		lcd_goto_xy(1, 0);
-		lcd_write_word("   Fallaste!    ");
+		lcd_write_word("   GAME OVER!   ");
 		prenderLed(secuencia[count]-1, true);
 		_delay_ms(1000);
 		perderJuego();
@@ -142,6 +164,7 @@ int main(void)
 	DDRD = 0b00000000;    // Configurar PD0-PD7 como entradas
 	PORTD = 0xFF;         // Activar pull-ups internos para PD0-PD7
 
+	setup_timer1();
 	sei();                // Habilitar interrupciones globales
 	configurar_pin_change_interrupt();  // Configurar interrupciones por cambio de pin
 	
@@ -182,4 +205,8 @@ ISR(PCINT2_vect) {
 			}
 		}
 	}
+}
+
+ISR(TIMER1_COMPA_vect) {
+	millis_count++; // Incrementa el conteo de milisegundos
 }
