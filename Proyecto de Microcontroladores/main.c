@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <util/delay.h>
 #include "LCD.h"
+#include "buzzer.h"
 
 uint8_t estado_anterior;
 unsigned int seed = 1;
@@ -49,28 +50,57 @@ void configurar_pin_change_interrupt() {
 	estado_anterior = PIND;  // Guardar el estado inicial de los pines
 }
 
+
 void prenderLed(uint8_t pin, bool longer){
 	switch(pin){
 		case 0:
 			PORTB |= (1 << PORTB2);  // Encender PB2
+			buzzer_tone(NOTE_C2); // Toca Do (C3)
+			_delay_ms(500);
+			buzzer_off();
+			_delay_ms(100);
 			break;
 		case 1:
-			PORTB |= (1 << PORTB1);  // Encender PB1
+			PORTB |= (1 << PORTB3);  // Encender PB3
+			buzzer_tone(NOTE_D2); // Toca Re (D3)
+			_delay_ms(500);
+			buzzer_off();
+			_delay_ms(100);
 			break;
 		case 2:
-			PORTB |= (1 << PORTB2) | (1 << PORTB1);  // Encender PB2 y PB1
+			PORTB |= (1 << PORTB2) | (1 << PORTB3);  // Encender PB2 y PB3
+			buzzer_tone(NOTE_E2); // Toca Mi (E3)
+			_delay_ms(500);
+			buzzer_off();
+			_delay_ms(100);
 			break;
 		case 3:
 			PORTB |= (1 << PORTB0);  // Encender PB0
+			buzzer_tone(NOTE_F2); // Toca Fa (F3)
+			_delay_ms(500);
+			buzzer_off();
+			_delay_ms(100);
 			break;
 		case 4:
 			PORTB |= (1 << PORTB2) | (1 << PORTB0);  // Encender PB2 y PB0
+			buzzer_tone(NOTE_G2); // Toca Sol (G3)
+			_delay_ms(500);
+			buzzer_off();
+			_delay_ms(100);
 			break;
 		case 5:
-			PORTB |= (1 << PORTB1) | (1 << PORTB0);  // Encender PB1 y PB0
+			PORTB |= (1 << PORTB3) | (1 << PORTB0);  // Encender PB3 y PB0
+			buzzer_tone(NOTE_A2); // Toca La (A3)
+			_delay_ms(500);
+			buzzer_off();
+			_delay_ms(100);
 			break;
 		case 6:
-			PORTB |= (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);  // Encender PB2, PB1 y PB0
+			PORTB |= (1 << PORTB2) | (1 << PORTB3) | (1 << PORTB0);  // Encender PB2, PB3 y PB0
+			buzzer_tone(NOTE_B2); // Toca Si (B3)
+			_delay_ms(500);
+			buzzer_off();
+			_delay_ms(100);
 			break;
 		
 	}
@@ -79,7 +109,7 @@ void prenderLed(uint8_t pin, bool longer){
 	else
 		_delay_ms(2000);
 	PORTB &= ~(1 << PORTB2);  // Apagar PB2
-	PORTB &= ~(1 << PORTB1);  // Apagar PB1
+	PORTB &= ~(1 << PORTB3);  // Apagar PB3
 	PORTB &= ~(1 << PORTB0);  // Apagar PB0
 }
 
@@ -123,6 +153,7 @@ void verificarBotonSecuencia(uint8_t pin)
 	lcd_goto_xy(0, 0);
 	if (pin == secuencia[count]-1)
 	{
+		_delay_ms(1);//estoy intentado arreglar un bug con la pantalla despues de completar la secuencia 
 		lcd_write_word("     Bien!      ");
 		prenderLed(pin, false);
 		count++;
@@ -134,10 +165,10 @@ void verificarBotonSecuencia(uint8_t pin)
 	} else
 	{
 		lcd_write_word("   GAME OVER!   ");
+		
 		prenderLed(secuencia[count]-1, true);
 		_delay_ms(1000);
 		perderJuego();
-		
 		lcd_clear();
 		lcd_goto_xy(0, 0);
 		lcd_write_word("   Simon Dice");
