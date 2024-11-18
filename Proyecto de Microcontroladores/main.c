@@ -12,6 +12,7 @@
 #include <util/delay.h>
 #include "LCD.h"
 #include "buzzer.h"
+#include "EEPROM.h"
 
 uint8_t estado_anterior;
 unsigned int seed = 1;
@@ -21,7 +22,11 @@ volatile unsigned int millis_count = 0;
 uint8_t secuencia[30];
 uint8_t count = 0;
 uint8_t ronda = 1;
+uint16_t bestScore = 0;
 bool start = false;
+bool scoreScreen = false;
+char msgS[18] = "<-Play  Score:";
+
 
 void setup_timer1() {
 	// Configura el Timer1 en modo CTC (Clear Timer on Compare Match)
@@ -169,23 +174,86 @@ void verificarBotonSecuencia(uint8_t pin)
 		prenderLed(secuencia[count]-1, true);
 		_delay_ms(1000);
 		perderJuego();
-		lcd_clear();
-		lcd_goto_xy(0, 0);
-		lcd_write_word("   Simon Dice");
-		lcd_goto_xy(1, 0);
-		lcd_write_word("<--- Press Start");
+		printMainMenu();
 	}
 	
 }
 
 void perderJuego() {
+	updateTopScores(ronda);
+	bestScore = EEPROM_read_word(0);
+	
 	count = 0;
 	ronda = 1;
 	start = false;
 	generarSecuencia();
+	
+	
+}
+
+void printMainMenu()
+{
+	snprintf(msgS, sizeof(msgS), "<-Play  Score:%02u", bestScore);
+	lcd_clear();
+	lcd_goto_xy(0, 0);
+	lcd_write_word("   Simon Says");
+	lcd_goto_xy(1, 0);
+	lcd_write_word(msgS);
 }
 
 
+void updateTopScores(uint16_t newScore) {
+	// Leer los puntajes actuales
+	uint16_t score0 = EEPROM_read_word(0);   // Dirección 0
+	uint16_t score1 = EEPROM_read_word(2);   // Dirección 2
+	uint16_t score2 = EEPROM_read_word(4);   // Dirección 4
+	uint16_t score3 = EEPROM_read_word(6);   // Dirección 6
+
+	// Comparar con el puntaje más alto y reordenar si es necesario
+	if (newScore > score0) {
+		// Nuevo puntaje es el mejor, desplazar los demás
+		EEPROM_write_word(6, score2);
+		EEPROM_write_word(4, score1);
+		EEPROM_write_word(2, score0);
+		EEPROM_write_word(0, newScore);
+		} else if (newScore > score1) {
+		// Nuevo puntaje es el segundo mejor, desplazar los demás
+		EEPROM_write_word(6, score2);
+		EEPROM_write_word(4, score1);
+		EEPROM_write_word(2, newScore);
+		} else if (newScore > score2) {
+		// Nuevo puntaje es el tercero mejor
+		EEPROM_write_word(6, score2);
+		EEPROM_write_word(4, newScore);
+		} else if (newScore > score3) {
+		// Nuevo puntaje es el cuarto mejor
+		EEPROM_write_word(6, newScore);
+	}
+}
+
+
+void printScores()
+{
+	
+
+	// Valores para los números a imprimir
+	uint16_t S1 = EEPROM_read_word(0), S2 = EEPROM_read_word(2);
+	uint16_t S3 = EEPROM_read_word(4), S4 = EEPROM_read_word(6);
+
+	// Crear cadenas para cada línea
+	char line1[16]; // Primera línea del LCD
+	char line2[16]; // Segunda línea del LCD
+									
+	snprintf(line1, sizeof(line1), " #1:%02u    #2:%02u", S1, S2);
+	snprintf(line2, sizeof(line2), " #3:%02u    #4:%02u", S3, S4);
+
+	// Mostrar cadenas en la pantalla LCD
+	lcd_clear();
+	lcd_goto_xy(0, 0); // Primera línea
+	lcd_write_word(line1);
+	lcd_goto_xy(1, 0); // Segunda línea
+	lcd_write_word(line2);
+}
 
 int main(void)
 {
@@ -199,13 +267,25 @@ int main(void)
 	sei();                // Habilitar interrupciones globales
 	configurar_pin_change_interrupt();  // Configurar interrupciones por cambio de pin
 	
-
+	
+	/*
+	address 0 es best score
+	address 1 es 2nd
+	address 2 es 3nd
+	address 3 es 4nd
+	*/
+	//Reiniciar scores
+	/*EEPROM_write_word(0,0);
+	EEPROM_write_word(1,0);
+	EEPROM_write_word(2,0);
+	EEPROM_write_word(3,0);*/
+	
+	bestScore = EEPROM_read_word(0);
+	
+	//16 caracteres por mensaje, 2 caracteres por num
+	
 	lcd_init();
-	lcd_clear();
-	lcd_goto_xy(0, 0);
-	lcd_write_word("   Simon Says");
-	lcd_goto_xy(1, 0);
-	lcd_write_word("<--- Press Start");
+	printMainMenu();
 	
 	while (1)
 	{
@@ -224,7 +304,7 @@ ISR(PCINT2_vect) {
 			if (!(estado_actual & (1 << i))) {  // Si el pin PDx está en nivel bajo (botón presionado)
 				if(i == 7)
 				{
-					if (start == false)
+					if (start == false && !scoreScreen)
 					{
 						start = true;
 						generarSecuencia();
@@ -232,7 +312,30 @@ ISR(PCINT2_vect) {
 					}
 				}
 				else if (start)
+				{
 					verificarBotonSecuencia(i);
+				}
+				else if(i == 0)
+				{
+					if (scoreScreen == false)
+					{
+						scoreScreen = true;
+						printScores();
+					} else
+					{
+						scoreScreen = false;
+						printMainMenu();
+					}
+				}
+				else if(i == 6)
+				{
+					EEPROM_write_word(0,0);
+					EEPROM_write_word(2,0);
+					EEPROM_write_word(4,0);
+					EEPROM_write_word(6,0);
+					bestScore = EEPROM_read_word(0);
+					printMainMenu();
+				}
 			}
 		}
 	}

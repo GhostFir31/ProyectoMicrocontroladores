@@ -126,6 +126,9 @@
     <Compile Include="buzzer.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="EEPROM.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="LCD.c">
       <SubType>compile</SubType>
     </Compile>
