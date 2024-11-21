@@ -31,17 +31,17 @@ void EEPROM_write(unsigned int uiAddress, unsigned char ucData)
 	EECR |= (1<<EEPE);
 }
 
-void EEPROM_write_word(unsigned int uiAddress, uint16_t word)
+void EEPROM_write_byte(unsigned int uiAddress, uint16_t word)
 {
 	EEPROM_write(uiAddress, (uint8_t)(word & 0xFF));          // Byte menos significativo
-	EEPROM_write(uiAddress + 1, (uint8_t)((word >> 8) & 0xFF)); // Byte más significativo
+	//EEPROM_write(uiAddress + 1, (uint8_t)((word >> 8) & 0xFF)); // Byte más significativo
 }
 
-uint16_t EEPROM_read_word(unsigned int uiAddress)
+uint8_t EEPROM_read_byte(unsigned int uiAddress)
 {
 	uint8_t low_byte = EEPROM_read(uiAddress);
-	uint8_t high_byte = EEPROM_read(uiAddress + 1);
-	return (uint16_t)(low_byte | (high_byte << 8));
+	//uint8_t high_byte = EEPROM_read(uiAddress + 1);
+	return low_byte;
 }
 
 
